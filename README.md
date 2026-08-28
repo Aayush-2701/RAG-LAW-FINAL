@@ -1,3 +1,37 @@
+# 5. Run
+streamlit run app.py
+```
+Open `http://localhost:8501` in your browser.
+### Adding your own PDFs
+Drop any PDF into the `pdfs/` folder (create it if it doesn't exist). It will be automatically detected and indexed the next time the app starts.
+---
+## 📦 Tech Stack & Dependencies
+```
+streamlit==1.42.0          # Web UI
+langchain==0.3.17          # RAG orchestration
+langchain-community        # FAISS integration
+langchain-groq==0.2.4      # Groq LLM connector
+langchain-huggingface      # HuggingFace embeddings connector
+sentence-transformers      # all-MiniLM-L6-v2 model (CPU, free)
+faiss-cpu==1.9.0.post1     # Vector similarity search
+pdfplumber==0.11.4         # PDF text extraction
+groq==0.16.0               # Groq SDK
+```
+---
+## 🔐 Security & Secrets
+- `GROQ_API_KEY` is the **only** secret required
+- Read from `st.secrets` (Streamlit Cloud) or `os.environ` (local dev)
+- **Never hardcoded** anywhere in the codebase
+- `.streamlit/secrets.toml` is listed in `.gitignore` — safe, never committed
+---
+## 📄 Bundled Sample Documents
+| Document | Description |
+|---|---|
+| `Bharatiya_Nagarik_Suraksha_Sanhita,_2023.pdf` | Indian Code of Criminal Procedure (BNSS 2023) |
+| `universal_declaration_of_human_rights.pdf` | UN Universal Declaration of Human Rights |
+| `RAG with DeepSeek R1.pdf` | Technical overview of the RAG architecture used |
+
+
 ## 💡 Example Questions to Try
 - *"What are the provisions for bail under the BNSS?"*
 - *"What rights does Article 12 of the UDHR guarantee?"*
