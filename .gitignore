@@ -1,0 +1,48 @@
+# .gitignore for RAG-LAW
+
+# Python virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Streamlit secrets — NEVER commit real secrets
+.streamlit/secrets.toml
+
+# Local FAISS vectorstore (rebuilt at runtime; committing binary indexes causes churn)
+vectorstore/
+
+# Environment variable files
+.env
+.env.*
+!.env.example
+
+# Pipenv (optional local tool; requirements.txt is the source of truth for Streamlit Cloud)
+Pipfile
+Pipfile.lock
+
+# Editor / OS artifacts
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+*.code-workspace
+
+# Test / coverage artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/

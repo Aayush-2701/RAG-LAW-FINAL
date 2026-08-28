@@ -1,0 +1,36 @@
+# RAG-LAW — Streamlit Cloud compatible dependencies
+# Install with: pip install -r requirements.txt
+#
+# Key decisions:
+#   - faiss-cpu (not faiss-gpu) — Streamlit Cloud has no GPU
+#   - sentence-transformers / langchain-huggingface — CPU-only embeddings, no API key
+#   - langchain-ollama is intentionally REMOVED (local-server dependency)
+#   - pdfplumber for reliable PDF text extraction
+
+# ── Streamlit ────────────────────────────────────────────────────────────────
+streamlit==1.42.0
+
+# ── LangChain core stack ─────────────────────────────────────────────────────
+langchain==0.3.17
+langchain-community==0.3.16
+langchain-core==0.3.33
+langchain-text-splitters==0.3.5
+
+# ── LLM: Groq ────────────────────────────────────────────────────────────────
+langchain-groq==0.2.4
+groq==0.16.0
+
+# ── Embeddings: HuggingFace (CPU-only, no API key required) ──────────────────
+langchain-huggingface==0.1.2
+sentence-transformers==3.4.1
+
+# ── Vector store ─────────────────────────────────────────────────────────────
+faiss-cpu==1.9.0.post1
+
+# ── PDF loading ───────────────────────────────────────────────────────────────
+pdfplumber==0.11.4
+pypdf==5.3.0
+
+# ── HTTP / async (transitive, pinned for reproducibility) ────────────────────
+httpx==0.28.1
+anyio==4.8.0
