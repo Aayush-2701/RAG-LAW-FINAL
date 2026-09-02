@@ -1,0 +1,3 @@
+# OS-level packages for Streamlit Community Cloud (Ubuntu/Debian)
+# Add any system dependencies here, one per line.
+# pdfplumber/pdfminer and faiss-cpu work without additional system packages.

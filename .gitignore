@@ -1,48 +1,38 @@
 # .gitignore for RAG-LAW
 
-# Python virtual environments
+# ── Python ───────────────────────────────────────────────────────────────────
 .venv/
 venv/
 env/
 ENV/
-
-# Python cache
 __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
 .Python
+*.egg-info/
+dist/
+build/
 
-# Streamlit secrets — NEVER commit real secrets
+# ── Streamlit secrets — NEVER commit real secrets ────────────────────────────
 .streamlit/secrets.toml
 
-# Local FAISS vectorstore (rebuilt at runtime; committing binary indexes causes churn)
+# ── Local FAISS vectorstore ───────────────────────────────────────────────────
+# The pre-built Vectorstore/ IS committed (used for cold-start on Streamlit Cloud).
+# Exclude only the lowercase variant to avoid confusion.
 vectorstore/
 
-# Environment variable files
+# ── Temp / uploaded files ─────────────────────────────────────────────────────
+/tmp/
+*.tmp
+
+# ── Environment variable files ────────────────────────────────────────────────
 .env
 .env.*
 !.env.example
 
-# Pipenv (optional local tool; requirements.txt is the source of truth for Streamlit Cloud)
-Pipfile
-Pipfile.lock
-
-# Editor / OS artifacts
-.DS_Store
-Thumbs.db
-*.swp
-*.swo
+# ── IDE / OS ──────────────────────────────────────────────────────────────────
 .idea/
 .vscode/
-*.code-workspace
-
-# Test / coverage artifacts
-.pytest_cache/
-.coverage
-htmlcov/
-
-# Build artifacts
-dist/
-build/
-*.egg-info/
+*.DS_Store
+Thumbs.db

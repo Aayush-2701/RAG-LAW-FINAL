@@ -1,14 +1,14 @@
-# RAG-LAW — Streamlit Cloud compatible dependencies
+# RAG-LAW — Streamlit Community Cloud compatible dependencies
 # Install with: pip install -r requirements.txt
 #
 # Key decisions:
 #   - faiss-cpu (not faiss-gpu) — Streamlit Cloud has no GPU
-#   - sentence-transformers / langchain-huggingface — CPU-only embeddings, no API key
-#   - langchain-ollama is intentionally REMOVED (local-server dependency)
-#   - pdfplumber for reliable PDF text extraction
+#   - sentence-transformers / langchain-huggingface — CPU-only embeddings
+#   - pdfplumber for reliable text extraction from legal PDFs
+#   - langchain-ollama intentionally excluded (requires local server)
 
 # ── Streamlit ────────────────────────────────────────────────────────────────
-streamlit==1.42.0
+streamlit>=1.43.0,<2.0.0
 
 # ── LangChain core stack ─────────────────────────────────────────────────────
 langchain==0.3.17

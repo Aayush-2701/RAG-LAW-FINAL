@@ -1,184 +1,186 @@
-# RAG-LAW-FINAL 🏛️
+# RAG-LAW ⚖️ — AI Legal Assistant
 
-A powerful **Retrieval-Augmented Generation (RAG)** system for querying and understanding legal documents using advanced AI models. This project combines LLMs with legal document processing to provide intelligent, context-aware responses to legal queries.
+> **Retrieval-Augmented Generation (RAG) over Indian and International legal documents — powered by Groq & LangChain.**
+
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://share.streamlit.io)
+[![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+---
 
 ## 🎯 Overview
 
-This project implements a RAG pipeline that processes legal documents (PDFs) and enables users to ask questions about them using state-of-the-art language models. It currently supports documents including:
+RAG-LAW is a production-ready **question-answering system** that lets you ask plain-language questions about legal documents and get accurate, grounded answers — with source citations, no hallucinations.
 
-- **Bharatiya Nagarik Suraksha Sanhita, 2023** (Indian Criminal Code)
-- **Universal Declaration of Human Rights**
+It combines:
+- **FAISS** vector similarity search for fast document retrieval
+- **HuggingFace sentence-transformers** for CPU-only embeddings (no GPU needed)
+- **Groq** ultra-fast inference with multiple LLM choices
+- **Streamlit** for an interactive, streaming chat interface
+
+---
+
+## 📄 Included Documents
+
+| Document | Description |
+|---|---|
+| `Bharatiya_Nagarik_Suraksha_Sanhita,_2023.pdf` | Indian Criminal Procedure Code (BNSS 2023) |
+| `universal_declaration_of_human_rights.pdf` | UN Universal Declaration of Human Rights |
+
+You can also **upload your own PDF** directly in the app.
+
+---
+
+## 🏗️ Architecture
+
+```mermaid
+flowchart LR
+    PDF["📄 PDF Documents\n(Root or Uploaded)"] --> Loader["PDFPlumberLoader"]
+    Loader --> Splitter["RecursiveCharacterTextSplitter\nchunk=1000, overlap=200"]
+    Splitter --> Embedder["all-MiniLM-L6-v2\n(HuggingFace, CPU-only)"]
+    Embedder --> FAISS["FAISS Vector Store\n(pre-built in Vectorstore/)"]
+
+    User["👤 User Query"] --> Search["Similarity Search\ntop-k = 5 chunks"]
+    FAISS --> Search
+    Search --> Context["Context + Citations"]
+    Context --> Prompt["ChatPromptTemplate"]
+    Prompt --> Groq["Groq LLM\n(streaming)"]
+    Groq --> Answer["📝 Streamed Answer\n+ Source Citations"]
+```
+
+---
 
 ## ✨ Features
 
-- 📄 **PDF Document Processing**: Efficiently parse and extract content from legal PDFs
-- 🔍 **Semantic Search**: Find relevant sections using vector embeddings
-- 🤖 **AI-Powered Responses**: Get accurate answers using DeepSeek R1 or other LLMs
-- 💾 **Vector Storage**: Persistent vector database for fast retrieval
-- 🌐 **Web Interface**: User-friendly Streamlit interface for easy interaction
-- 🔗 **Context Preservation**: Maintains document context for accurate legal interpretations
+- 🔍 **Semantic search** — FAISS vector similarity, not keyword matching
+- ⚡ **Streaming answers** — see the response token-by-token in real time
+- 📄 **Source citations** — every answer shows the source document and page number
+- 🤖 **Multiple LLM models** — switch between Groq models in the sidebar
+- 📤 **Upload any PDF** — not just the preloaded documents
+- 💬 **Chat history** — full conversation memory within a session
+- 🚀 **Instant cold starts** — pre-built FAISS index committed to the repo
+- 🎨 **Dark theme** — readable, distraction-free UI
+
+---
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 
-- Python 3.9 or higher
-- pip (Python package installer)
+- Python 3.11+
+- A **free** Groq API key from [console.groq.com](https://console.groq.com)
 
-### Installation
+### Local Setup
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/Aayush-2701/RAG-LAW-FINAL.git
-   cd RAG-LAW-FINAL
-   ```
-
-2. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-### Usage
-
-#### Run the Web Interface
 ```bash
+# 1. Clone the repository
+git clone https://github.com/Aayush-2701/RAG-LAW-FINAL.git
+cd RAG-LAW-FINAL
+
+# 2. Create and activate a virtual environment
+python -m venv .venv
+source .venv/bin/activate      # Windows: .venv\Scripts\activate
+
+# 3. Install dependencies
+pip install -r requirements.txt
+
+# 4. Add your Groq API key
+cp .streamlit/secrets.toml.example .streamlit/secrets.toml
+# Edit .streamlit/secrets.toml and replace the placeholder with your real key
+
+# 5. Run the app
 streamlit run app.py
 ```
 
-The application will open in your browser, allowing you to:
-- Upload legal documents (PDFs)
-- Ask questions about the documents
-- View retrieved relevant sections
-- Get AI-generated answers with citations
+The app opens at `http://localhost:8501`.
 
-#### Use the RAG Pipeline Directly
-```python
-from rag_pipeline import RAGPipeline
+---
 
-# Initialize the pipeline
-rag = RAGPipeline()
+## ☁️ Deploy to Streamlit Community Cloud
 
-# Query a document
-response = rag.query("What are the punishment provisions?")
-print(response)
-```
+1. **Fork** or push this repo to your GitHub account.
+2. Go to [share.streamlit.io](https://share.streamlit.io) → **New app**.
+3. Select your repo, branch `main`, and set **Main file path** to `app.py`.
+4. Click **Advanced settings → Secrets** and paste:
+   ```toml
+   GROQ_API_KEY = "gsk_your-groq-api-key-here"
+   ```
+5. Click **Deploy**. The app will be live in ~2 minutes.
+
+> **No GPU required.** Embeddings run on CPU via `sentence-transformers`. The pre-built FAISS index in `Vectorstore/` is loaded instantly — no rebuild on cold start.
+
+---
 
 ## 📁 Project Structure
 
 ```
 RAG-LAW-FINAL/
-├── app.py                           # Streamlit web application
-├── rag_pipeline.py                  # Core RAG implementation
-├── requirements.txt                 # Python dependencies
-├── runtime.txt                      # Python runtime specification
-├── Bharatiya_Nagarik_Suraksha_Sanhita,_2023.pdf    # Indian Criminal Code
-├── universal_declaration_of_human_rights.pdf       # Human Rights document
-├── Vectorstore/                     # Vector database storage
-└── streamlit/                       # Additional Streamlit configs
+├── app.py                                        # Streamlit web application
+├── rag_pipeline.py                               # Core RAG backend
+├── requirements.txt                              # Python dependencies
+├── runtime.txt                                   # Python 3.11 spec
+├── packages.txt                                  # OS-level deps (Streamlit Cloud)
+├── .gitignore
+├── .streamlit/
+│   ├── config.toml                               # Dark theme + UI config
+│   └── secrets.toml.example                      # API key template
+├── Vectorstore/
+│   ├── index.faiss                               # Pre-built vector index
+│   └── index.pkl                                 # Index metadata
+├── Bharatiya_Nagarik_Suraksha_Sanhita,_2023.pdf
+└── universal_declaration_of_human_rights.pdf
 ```
-
-## 🛠️ Technology Stack
-
-- **Language Models**: DeepSeek R1, Open-source LLMs
-- **Vector Database**: Faiss/Chroma for embeddings storage
-- **Document Processing**: PyPDF2, LangChain
-- **Web Framework**: Streamlit
-- **Embeddings**: Hugging Face Transformers
-- **Python Libraries**: See `requirements.txt`
-
-## 📋 Features in Detail
-
-### Document Processing
-- Extracts text from PDF documents
-- Splits documents into manageable chunks
-- Generates vector embeddings for semantic search
-
-### Retrieval Mechanism
-- Uses semantic similarity for retrieving relevant sections
-- Returns top-k most relevant chunks based on query
-- Preserves document structure and context
-
-### Generation
-- Passes retrieved context to LLM
-- Generates accurate, context-aware responses
-- Includes source citations for transparency
-
-## 🔧 Configuration
-
-### Dependencies
-
-Key packages (see `requirements.txt` for full list):
-- `streamlit` - Web interface
-- `langchain` - RAG framework
-- `faiss-cpu` or `chroma` - Vector stores
-- `sentence-transformers` - Embeddings
-- `transformers` - LLM support
-- `pypdf` - PDF processing
-
-### Environment Variables
-
-Create a `.env` file if needed for API keys:
-```bash
-# Add your API keys here
-OPENAI_API_KEY=your_key_here
-HUGGINGFACE_API_KEY=your_key_here
-```
-
-## 📊 How It Works
-
-```
-User Query
-    ↓
-Query Embedding
-    ↓
-Vector Similarity Search
-    ↓
-Retrieve Relevant Documents
-    ↓
-Create Prompt with Context
-    ↓
-LLM Generation
-    ↓
-Return Answer with Citations
-```
-
-## 🎓 Use Cases
-
-- **Legal Research**: Quickly find relevant clauses and sections
-- **Document Analysis**: Understand complex legal language
-- **Case Preparation**: Research applicable laws and rights
-- **Educational**: Learn about legal documents and their provisions
-- **Compliance**: Check regulatory requirements
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to:
-- Report issues
-- Suggest improvements
-- Submit pull requests
-- Add support for more legal documents
-
-## 📝 License
-
-This project is open source. Please check the repository for license details.
-
-## 📚 Resources
-
-- [LangChain Documentation](https://python.langchain.com/)
-- [Streamlit Documentation](https://docs.streamlit.io/)
-- [DeepSeek Documentation](https://www.deepseek.com/)
-- [Bharatiya Nagarik Suraksha Sanhita, 2023](https://www.indiacode.nic.in/)
-
-## 🔐 Legal Notice
-
-This tool is designed for informational purposes. While it provides AI-assisted analysis of legal documents, it should not replace professional legal advice. Always consult with qualified legal professionals for matters requiring legal interpretation.
-
-## 💬 Support & Contact
-
-For questions, issues, or suggestions, please open an issue on GitHub or contact the repository maintainer.
 
 ---
 
-**Built with ❤️ for legal research and AI-powered document analysis**
+## 🔧 Tech Stack
 
-Last Updated: 2026-08-28
+| Layer | Technology |
+|---|---|
+| **UI / Framework** | [Streamlit](https://streamlit.io) |
+| **LLM** | [Groq](https://groq.com) — `deepseek-r1-distill-llama-70b` (default) |
+| **Embeddings** | `sentence-transformers/all-MiniLM-L6-v2` (local, CPU) |
+| **Vector Store** | [FAISS](https://github.com/facebookresearch/faiss) (CPU) |
+| **Orchestration** | [LangChain](https://langchain.com) 0.3.x |
+| **PDF Parsing** | pdfplumber + pypdf |
+
+---
+
+## 🧩 Use the RAG Pipeline Directly
+
+```python
+from rag_pipeline import build_preloaded_index, answer_query
+
+# Load the preloaded index (uses pre-built Vectorstore/ for speed)
+vs = build_preloaded_index()
+
+# Stream an answer
+stream_gen, citations = answer_query(vs, "What are the punishment provisions for theft?")
+for token in stream_gen:
+    print(token, end="", flush=True)
+
+# Print citations
+for c in citations:
+    print(f"\n[{c['source']}, p.{c['page']}]: {c['snippet']}")
+```
+
+---
+
+## ⚠️ Disclaimer
+
+This application is for **educational and research purposes only**. It is **not** a substitute for qualified legal advice. Always consult a licensed legal professional for legal matters.
+
+---
+
+## 🤝 Contributing
+
+Pull requests are welcome! Please:
+1. Fork the repo and create a feature branch.
+2. Make your changes with clear commit messages.
+3. Open a PR with a description of what changed and why.
+
+---
+
+## 📜 License
+
+MIT © [Aayush-2701](https://github.com/Aayush-2701)

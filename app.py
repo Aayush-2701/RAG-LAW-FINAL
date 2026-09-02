@@ -5,8 +5,8 @@ Run locally:
     streamlit run app.py
 
 Deploy to Streamlit Community Cloud:
-    Main file path: app.py
-    Secrets: GROQ_API_KEY = "your-groq-api-key"
+    Main file path : app.py
+    Secrets        : GROQ_API_KEY = "gsk_..."
 """
 
 from __future__ import annotations
@@ -14,10 +14,14 @@ from __future__ import annotations
 import streamlit as st
 
 from rag_pipeline import (
+    AVAILABLE_MODELS,
+    DEFAULT_LLM_MODEL,
     answer_query,
     build_index_from_upload,
     build_preloaded_index,
+    discover_pdfs,
     get_groq_api_key,
+    load_embedding_model,
 )
 
 # ---------------------------------------------------------------------------
@@ -32,246 +36,274 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------------------------
+# Session-state initialisation
+# ---------------------------------------------------------------------------
+
+def _init_state() -> None:
+    defaults = {
+        "chat_history": [],          # list[dict]: {role, content, citations}
+        "active_vectorstore": None,
+        "active_source_label": None,
+        "selected_model": DEFAULT_LLM_MODEL,
+    }
+    for key, val in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = val
+
+_init_state()
+
+# ---------------------------------------------------------------------------
 # Sidebar
 # ---------------------------------------------------------------------------
 
 with st.sidebar:
     st.title("⚖️ RAG-LAW")
     st.caption("Retrieval-Augmented Generation over legal documents")
-
     st.divider()
 
-    # API key status indicator
+    # ── API key status ──────────────────────────────────────────────────────
     api_key = get_groq_api_key()
     if api_key:
-        st.success("✅ Groq API key found", icon="🔑")
+        st.success("✅ Groq API key detected", icon="🔑")
     else:
         st.error(
             "❌ **GROQ_API_KEY not set.**\n\n"
             "Add it to `.streamlit/secrets.toml` (local) or the "
-            "**Secrets** panel on share.streamlit.io (cloud).",
+            "**Secrets** panel on Streamlit Community Cloud.",
             icon="🔑",
         )
 
     st.divider()
+
+    # ── Model selector ──────────────────────────────────────────────────────
+    st.subheader("🤖 LLM Model")
+    st.session_state.selected_model = st.selectbox(
+        "Groq model",
+        options=AVAILABLE_MODELS,
+        index=AVAILABLE_MODELS.index(st.session_state.selected_model)
+        if st.session_state.selected_model in AVAILABLE_MODELS
+        else 0,
+        label_visibility="collapsed",
+        help="All models are served via Groq's ultra-fast inference API.",
+    )
+
+    st.divider()
+
+    # ── How it works ────────────────────────────────────────────────────────
     st.markdown(
         """
 **How it works**
 
-1. Index a PDF (preloaded or uploaded).
-2. Type a legal question.
-3. The app retrieves the most relevant passages via FAISS similarity search.
-4. Groq's LLM synthesises an answer grounded in those passages.
+1. Load a preloaded legal doc or upload your own PDF.
+2. Type a question in the chat box.
+3. **FAISS** retrieves the most relevant passages.
+4. **Groq LLM** streams a grounded answer with citations.
 
-**Model:** `deepseek-r1-distill-llama-70b` via Groq  
-**Embeddings:** `all-MiniLM-L6-v2` (local, CPU)
+**Embeddings:** `all-MiniLM-L6-v2` (local, CPU-only)
 """
     )
 
     st.divider()
+
+    # ── Clear chat ──────────────────────────────────────────────────────────
+    if st.button("🗑️ Clear chat history", use_container_width=True):
+        st.session_state.chat_history = []
+        st.rerun()
+
+    st.divider()
     st.caption(
-        "Answers are based solely on the indexed documents. "
-        "This is a demo — not legal advice."
+        "⚠️ Answers are grounded in the indexed documents only. "
+        "This is a demo — **not legal advice**."
     )
 
 # ---------------------------------------------------------------------------
-# Main area
+# Main area — header
 # ---------------------------------------------------------------------------
 
 st.title("⚖️ AI Legal Assistant")
 st.write(
-    "Ask questions about legal documents. The assistant retrieves relevant "
-    "passages and grounds its answers in them."
+    "Ask questions about legal documents. "
+    "The assistant retrieves the most relevant passages and streams "
+    "a grounded answer with source citations."
 )
 
-# Session-state keys
-if "active_vectorstore" not in st.session_state:
-    st.session_state.active_vectorstore = None
-if "active_source_label" not in st.session_state:
-    st.session_state.active_source_label = None
+# ---------------------------------------------------------------------------
+# Warm up the embedding model in the background (avoids first-query lag)
+# ---------------------------------------------------------------------------
+
+with st.spinner("⚙️ Loading embedding model…"):
+    load_embedding_model()
 
 # ---------------------------------------------------------------------------
-# Tabs: preloaded PDFs vs. file upload
+# Document selection — tabs
 # ---------------------------------------------------------------------------
 
 tab_preloaded, tab_upload = st.tabs(["📂 Preloaded Documents", "📤 Upload Your PDF"])
 
-# --- Tab 1: Preloaded PDFs ---------------------------------------------------
+# ── Tab 1: Preloaded PDFs ───────────────────────────────────────────────────
 with tab_preloaded:
     st.subheader("Preloaded Legal Documents")
     st.write(
-        "These PDFs are bundled with the app. Click **Load** to build "
-        "(or reuse a cached) FAISS index."
+        "These documents are bundled with the app and indexed at startup. "
+        "Click **Load** to activate them."
     )
 
-    with st.spinner("🔍 Scanning for preloaded PDFs…"):
-        # Trigger the cached index build (no-op if already cached)
-        preloaded_vs = build_preloaded_index()
-
-    if preloaded_vs is None:
-        st.warning(
-            "No PDFs found in the `pdfs/` directory or repo root. "
-            "Add PDFs to `pdfs/` and redeploy, or use the Upload tab.",
-            icon="📭",
-        )
+    pdfs = discover_pdfs()
+    if not pdfs:
+        st.warning("⚠️ No PDF files found at the repository root.")
     else:
-        from pathlib import Path
-        import glob
+        # Show available documents as an info block
+        pdf_list_md = "\n".join(f"- 📄 `{p.name}`" for p in pdfs)
+        st.markdown(f"**Available documents:**\n{pdf_list_md}")
 
-        root = Path(__file__).parent
-        pdf_paths = list(root.glob("*.pdf")) + list((root / "pdfs").glob("*.pdf"))
-        seen, unique = set(), []
-        for p in pdf_paths:
-            r = p.resolve()
-            if r not in seen:
-                seen.add(r)
-                unique.append(p.name)
-
-        st.markdown("**Available documents:**")
-        for name in unique:
-            st.markdown(f"- 📄 {name}")
-
-        if st.button("✅ Use Preloaded Documents", type="primary", key="btn_preloaded"):
-            st.session_state.active_vectorstore = preloaded_vs
-            st.session_state.active_source_label = f"{len(unique)} preloaded document(s)"
-            st.success(
-                f"Index loaded! {len(unique)} document(s) are ready to query.",
-                icon="✅",
+        col_load, col_status = st.columns([2, 3])
+        with col_load:
+            load_btn = st.button(
+                "📥 Load All Preloaded Documents",
+                key="load_preloaded",
+                type="primary",
+                use_container_width=True,
             )
+        with col_status:
+            if st.session_state.active_source_label:
+                st.info(f"🟢 Active: **{st.session_state.active_source_label}**")
 
-# --- Tab 2: User upload ------------------------------------------------------
+        if load_btn:
+            with st.spinner("🔍 Loading FAISS index…"):
+                vs = build_preloaded_index()
+            if vs:
+                st.session_state.active_vectorstore = vs
+                st.session_state.active_source_label = (
+                    f"{len(pdfs)} preloaded document(s)"
+                )
+                st.session_state.chat_history = []
+                st.success(
+                    f"✅ Loaded **{len(pdfs)} document(s)** — ready to query!",
+                    icon="⚖️",
+                )
+            else:
+                st.error("❌ Failed to build index. Check that the PDFs are readable.")
+
+# ── Tab 2: Upload PDF ───────────────────────────────────────────────────────
 with tab_upload:
-    st.subheader("Upload a PDF")
-    st.write("Upload any legal PDF. The index is built on-the-fly and stored for this session.")
+    st.subheader("Upload Your Own Legal PDF")
+    st.write("Upload any PDF document to index and query it with the RAG pipeline.")
 
     uploaded_file = st.file_uploader(
         "Choose a PDF file",
         type=["pdf"],
-        accept_multiple_files=False,
         label_visibility="collapsed",
     )
 
     if uploaded_file is not None:
-        # Basic sanity check
-        if not uploaded_file.name.lower().endswith(".pdf"):
-            st.error(
-                f"'{uploaded_file.name}' does not appear to be a PDF file. "
-                "Please upload a valid PDF.",
-                icon="🚫",
+        col_btn, col_info = st.columns([2, 3])
+        with col_btn:
+            index_btn = st.button(
+                "📥 Index Uploaded PDF",
+                key="index_upload",
+                type="primary",
+                use_container_width=True,
             )
-        else:
-            st.info(f"📄 **{uploaded_file.name}** ({uploaded_file.size / 1024:.1f} KB)")
+        with col_info:
+            st.write(f"**File:** `{uploaded_file.name}`")
+            st.write(f"**Size:** {uploaded_file.size / 1024:.1f} KB")
 
-            if st.button("⚙️ Build Index from Upload", type="primary", key="btn_upload"):
-                with st.spinner(
-                    f"Indexing **{uploaded_file.name}** — this may take up to 30s…"
-                ):
-                    try:
-                        pdf_bytes = uploaded_file.read()
-                        vectorstore = build_index_from_upload(
-                            pdf_bytes, uploaded_file.name
-                        )
-                        st.session_state.active_vectorstore = vectorstore
-                        st.session_state.active_source_label = uploaded_file.name
-                        st.success(
-                            f"✅ Index built for **{uploaded_file.name}**! Ready to query.",
-                            icon="✅",
-                        )
-                    except ValueError as exc:
-                        st.error(
-                            f"Could not extract text from the PDF: {exc}\n\n"
-                            "Make sure the file is not password-protected or scanned-only.",
-                            icon="🚫",
-                        )
-                    except Exception as exc:
-                        st.error(
-                            f"Unexpected error while indexing: {exc}",
-                            icon="🚫",
-                        )
+        if index_btn:
+            with st.spinner(f"⚙️ Indexing `{uploaded_file.name}`… this may take a moment."):
+                vs = build_index_from_upload(
+                    uploaded_file.read(), uploaded_file.name
+                )
+            if vs:
+                st.session_state.active_vectorstore = vs
+                st.session_state.active_source_label = uploaded_file.name
+                st.session_state.chat_history = []
+                st.success(
+                    f"✅ Indexed **{uploaded_file.name}** — ready to query!",
+                    icon="📄",
+                )
+            else:
+                st.error(
+                    "❌ Indexing failed. Make sure the PDF contains extractable text "
+                    "(not a scanned image-only PDF)."
+                )
 
 # ---------------------------------------------------------------------------
-# Query interface — always visible below the tabs
+# Chat interface
 # ---------------------------------------------------------------------------
 
 st.divider()
 
-active_label = st.session_state.get("active_source_label")
-active_vs = st.session_state.get("active_vectorstore")
+if st.session_state.active_vectorstore is None:
+    st.info(
+        "👆 **Load a document above** to start asking legal questions.",
+        icon="ℹ️",
+    )
+else:
+    st.subheader(f"💬 Querying: {st.session_state.active_source_label}")
+    st.caption(
+        f"Model: `{st.session_state.selected_model}` via Groq · "
+        "Change model in the sidebar."
+    )
 
-if active_label:
-    st.info(f"🗂️ **Active index:** {active_label}", icon="📂")
+    # ── Render past messages ────────────────────────────────────────────────
+    for msg in st.session_state.chat_history:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+            if msg.get("citations"):
+                with st.expander("📄 Sources used", expanded=False):
+                    for cit in msg["citations"]:
+                        st.markdown(
+                            f"**{cit['source']}** — Page {cit['page']}\n\n"
+                            f"> {cit['snippet']}…"
+                        )
 
-st.subheader("Ask a Legal Question")
+    # ── Chat input ──────────────────────────────────────────────────────────
+    question = st.chat_input("Ask a legal question…")
 
-user_question = st.text_area(
-    "Your question:",
-    height=120,
-    placeholder=(
-        "e.g. What rights does Article 12 of the UDHR guarantee? "
-        "What are the provisions for bail under the BNSS?"
-    ),
-    label_visibility="collapsed",
+    if question:
+        # Display user bubble
+        with st.chat_message("user"):
+            st.markdown(question)
+        st.session_state.chat_history.append(
+            {"role": "user", "content": question, "citations": []}
+        )
+
+        # Stream assistant response
+        with st.chat_message("assistant"):
+            stream_gen, citations = answer_query(
+                st.session_state.active_vectorstore,
+                question,
+                model_name=st.session_state.selected_model,
+            )
+            answer_text = st.write_stream(stream_gen)
+
+            if citations:
+                with st.expander("📄 Sources used", expanded=False):
+                    for cit in citations:
+                        st.markdown(
+                            f"**{cit['source']}** — Page {cit['page']}\n\n"
+                            f"> {cit['snippet']}…"
+                        )
+
+        # Persist to history
+        st.session_state.chat_history.append(
+            {
+                "role": "assistant",
+                "content": answer_text,
+                "citations": citations,
+            }
+        )
+
+# ---------------------------------------------------------------------------
+# Footer
+# ---------------------------------------------------------------------------
+
+st.divider()
+st.caption(
+    "RAG-LAW · Built with "
+    "[Streamlit](https://streamlit.io), "
+    "[LangChain](https://langchain.com), "
+    "[Groq](https://groq.com), "
+    "and [FAISS](https://github.com/facebookresearch/faiss). "
+    "**Not legal advice.**"
 )
-
-ask_button = st.button("🔍 Ask AI Lawyer", type="primary", disabled=(not user_question.strip()))
-
-if ask_button:
-    # Guard: question must not be empty
-    if not user_question.strip():
-        st.warning("Please enter a question before clicking Ask.", icon="⚠️")
-
-    # Guard: must have an active index
-    elif active_vs is None:
-        st.error(
-            "No documents are indexed yet. Please load the preloaded documents "
-            "or upload a PDF first.",
-            icon="📭",
-        )
-
-    # Guard: must have a Groq API key
-    elif not get_groq_api_key():
-        st.error(
-            "**GROQ_API_KEY is missing.** Add it to `.streamlit/secrets.toml` "
-            "(local dev) or the Streamlit Cloud Secrets panel.",
-            icon="🔑",
-        )
-
-    else:
-        with st.spinner("🤖 Thinking… (retrieving passages and calling Groq)"):
-            try:
-                answer, sources = answer_query(user_question, active_vs)
-            except ValueError as exc:
-                st.error(str(exc), icon="🔑")
-                st.stop()
-            except RuntimeError as exc:
-                st.error(
-                    f"The AI call failed. Check your Groq API key and try again.\n\n"
-                    f"Details: {exc}",
-                    icon="🚫",
-                )
-                st.stop()
-            except Exception as exc:
-                st.error(f"Unexpected error: {exc}", icon="🚫")
-                st.stop()
-
-        # --- Display answer ---
-        st.markdown("### 💬 Answer")
-        # Strip <think> reasoning tags that DeepSeek-R1 sometimes emits
-        import re
-        clean_answer = re.sub(r"<think>.*?</think>", "", answer, flags=re.DOTALL).strip()
-        st.markdown(clean_answer)
-
-        # --- Display source chunks ---
-        if sources:
-            with st.expander("📑 Source Passages Retrieved", expanded=False):
-                for i, doc in enumerate(sources, 1):
-                    source_name = doc.metadata.get("source", "Unknown")
-                    page = doc.metadata.get("page", "?")
-                    st.markdown(
-                        f"**Chunk {i}** — `{source_name}` (page {page})"
-                    )
-                    st.markdown(
-                        f"> {doc.page_content[:600]}{'…' if len(doc.page_content) > 600 else ''}"
-                    )
-                    if i < len(sources):
-                        st.markdown("---")
